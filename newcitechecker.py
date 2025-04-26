@@ -98,19 +98,18 @@ def omit_words_in_case_name(name: str) -> str:
     # 4) “In re” → keep only up to comma
     if name.lower().startswith('in re'):
         name = name.split(',', 1)[0]
-    # 5) Collapse multiple “ ex rel.” to one
     # 5) Collapse multiple “ ex rel.” to one, then normalize “United States of America”
-    parts = re.split(r'\s+ex rel\.', name, flags=re.IGNORECASE)
-    if len(parts) > 1:
-        name = parts[0] + ' ex rel.'
+    #parts = re.split(r'\s+ex rel\.', name, flags=re.IGNORECASE)
+    #if len(parts) > 1:
+        #name = parts[0] + ' ex rel.'
         # collapse "United States of America" → "United States"
-        name = re.sub(
-            r'United States of America',
-            'United States',
-            name,
-            flags=re.IGNORECASE
-        ).strip()
-        return name
+        #name = re.sub(
+            #r'United States of America',
+            #'United States',
+            #name,
+           # flags=re.IGNORECASE
+        #).strip()
+        #return name
     # 6) Drop Trustee/Executor/Admin descriptors
     name = re.sub(r'\b(Trustee|Executor|Administrator|Administratrix)\b.*', '', name, flags=re.IGNORECASE).strip()
     # 7) Drop “State of ”
@@ -219,10 +218,14 @@ class CitationChecker:
         parse them into components, and store in self.full_citations.
         """
         self.full_citations.clear()
-        for m in PATTERNS['citation'].finditer(text):
-            comps = m.groupdict()
-            key = f"{comps['volume']}_{comps['reporter']}_{comps['page']}"
-            self.full_citations[key] = comps
+
+        # split on semicolons so we catch multiple citations in one string
+        for segment in re.split(r';\s*', text):
+            for m in PATTERNS['citation'].finditer(segment):
+                comps = m.groupdict()
+                key = f"{comps['volume']}_{comps['reporter']}_{comps['page']}"
+                self.full_citations[key] = comps
+
         return self.full_citations
 
     @staticmethod
@@ -643,4 +646,4 @@ class CitationChecker:
         for key, grp in self.full_citations.items():
             if grp['volume'] in short and grp['reporter'] in short:
                 return grp
-        raise ValueError("No matching full citation for short form")
+        raise KeyError(f"No matching full citation for short form: '{short}'")

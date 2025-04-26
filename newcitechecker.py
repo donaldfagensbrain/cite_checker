@@ -99,9 +99,18 @@ def omit_words_in_case_name(name: str) -> str:
     if name.lower().startswith('in re'):
         name = name.split(',', 1)[0]
     # 5) Collapse multiple “ ex rel.” to one
+    # 5) Collapse multiple “ ex rel.” to one, then normalize “United States of America”
     parts = re.split(r'\s+ex rel\.', name, flags=re.IGNORECASE)
     if len(parts) > 1:
         name = parts[0] + ' ex rel.'
+        # collapse "United States of America" → "United States"
+        name = re.sub(
+            r'United States of America',
+            'United States',
+            name,
+            flags=re.IGNORECASE
+        ).strip()
+        return name
     # 6) Drop Trustee/Executor/Admin descriptors
     name = re.sub(r'\b(Trustee|Executor|Administrator|Administratrix)\b.*', '', name, flags=re.IGNORECASE).strip()
     # 7) Drop “State of ”
@@ -257,17 +266,17 @@ class CitationChecker:
         quote = quote.replace('“', '"').replace('”', '"')
         # convert any straight double‐quotes inside to straight single‐quotes
         quote = quote.replace('"', "'")
-        if quote and quote[0].islower():
-            quote = f"[{quote[0].upper()}]{quote[1:]}"
         # Principle 4: internal omissions shown as spaced ellipses
         quote = re.sub(r'\.{3,}', ' . . . ', quote)
 
         if len(words) < 50:
-            # inline
+            # inline: if it starts lowercase, bracket‐capitalize that first letter
+            if quote and quote[0].islower():
+                quote = f"[{quote[0].upper()}]{quote[1:]}"
             return f'“{quote}” {citation_str}'
         else:
-            # block quote: indent both left & right (here represented with leading spaces)
-            indented = "\n".join("    " + line for line in quote.splitlines())
+            # block quote: leave text intact and indent each line with a single space
+            indented = "\n".join(" " + line for line in quote.splitlines())
             return f"{indented}\n{citation_str}"
     
     def _apply_signal_formatting(self, text: str, style: str = "italic") -> str:
@@ -276,11 +285,11 @@ class CitationChecker:
         they open a citation clause or citation sentence.
         """
         opener = r'(^|[.;]\s+)'  # start of string OR just after . or ;
-        tag    = (lambda x: f"<i>{x}</i>") if style == "italic" else (lambda x: f"__{x}__")
-
+        tag = (lambda x: f"<i>{x}</i>") if style == "italic" else (lambda x: f"__{x}__")
         def wrap(m: re.Match) -> str:
-            prefix, signal, tail = m.groups()
-            return prefix + tag(signal) + tail
+            prefix, signal = m.groups()
+            # the trailing space is consumed by the regex \s, so we add it back
+            return prefix + tag(signal) + " "
 
         for sig in CITATION_SIGNALS_ORDERED:
             pattern = rf"{opener}({re.escape(sig)})\s"
@@ -555,11 +564,15 @@ class CitationChecker:
         validate_reporter_for_court(comps)
 
         # — Fetch + Pincite Check —
-        data = self.fetch_case_data(
-            comps['volume'], comps['reporter'], comps['page'], pincite
-        )
-        if not data:
-            raise ValueError("Citation not found or pincite incorrect")
+        # only do the DB lookup & error if a pincite was actually passed in
+        if pincite is not None:
+            data = self.fetch_case_data(
+                comps['volume'], comps['reporter'], comps['page'], pincite
+            )
+            if not data:
+                raise ValueError("Citation not found or pincite incorrect")
+        else:
+            data = {}
 
         # — Quote Verification —
         if provided_quote:

@@ -1,5 +1,6 @@
 import re
 from constants import ALLOWED_REPORTERS
+import advancedregex
 
 # Build a regex for all allowed reporters, longest-first to avoid prefix collisions
 allowed_reporters_regex = r'|'.join(
@@ -76,15 +77,5 @@ VALIDATORS = {
     'article':     PATTERNS['article'],
 }
 
-# ----- Advanced (less-common) citation types -----
-ADVANCED_PATTERNS = {
-    # e.g. 'executive_order': EXECUTIVE_ORDER_PATTERN,
-    #       'arbitration': ARBITRATION_DECISION_PATTERN,
-}
-ADVANCED_VALIDATORS = {
-    # Mirror ADVANCED_PATTERNS here
-}
-
-# ----- Merge core + advanced -----
-ALL_PATTERNS   = {**PATTERNS, **ADVANCED_PATTERNS}
-ALL_VALIDATORS = {**VALIDATORS, **ADVANCED_VALIDATORS}
+PATTERNS.update(advancedregex.ADVANCED_PATTERNS)
+VALIDATORS.update(advancedregex.ADVANCED_VALIDATORS)

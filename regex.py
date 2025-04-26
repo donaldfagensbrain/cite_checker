@@ -6,14 +6,17 @@ allowed_reporters_regex = r'|'.join(
     sorted(map(re.escape, ALLOWED_REPORTERS), key=len, reverse=True)
 )
 
-# 1) Full-form case citations (e.g. Brown v. Bd., 347 U.S. 483 (U.S. 1954))
+# 1) Full-form case citations (e.g. A v. B, C, D & E, 347 U.S. 483 (U.S. 1954))
 CITATION_PATTERN = re.compile(
-    rf'^(?P<case_name>.+?)\s+'
-    r'(?P<volume>\d+)\s+'
-    rf'(?P<reporter>({allowed_reporters_regex}))\s+'
-    r'(?P<page>\d+)'          # main page
+    # capture everything up to the *last* comma before the volume,
+    # so internal commas stay inside case_name but the final comma is required
+    rf'^(?P<case_name>.+),'         # case_name ends at that comma
+    r'(?=\s*\d+\s)'                 # assert that comma is right before volume
+    r'\s*(?P<volume>\d+)\s+'        # volume
+    rf'(?P<reporter>({allowed_reporters_regex}))\s+'  # reporter
+    r'(?P<page>\d+)'                # page
     r'(?:,\s*(?P<pinpoint>\d+(?:-\d+)?))?'  # optional pinpoint
-    r'\s*\((?P<court>.+?)\s+(?P<year>\d{4})\)$'
+    r'\s*\((?P<court>.+?)\s+(?P<year>\d{4})\)$'  # (Court Year)
 )
 
 # 2) Statutes: federal (U.S.C.) and all states
@@ -44,7 +47,9 @@ BOOK_PATTERNS = [
 
 # 5) Law review & treatise articles
 ARTICLE_PATTERNS = [
-    re.compile(r'^[A-Z][^,]+,\s+[^,]+,\s+\d+\s+[A-Za-z\.]+\s+\d+(?:,\s*\d+)?\s*\(\d{4}\)$'),
+    re.compile(
+        r'^[A-Z][^,]+,\s+[^,]+,\s+\d+\s+[A-Za-z\.]+(?:\s+[A-Za-z\.]+)*\s+\d+(?:,\s*\d+)?\s*\(\d{4}\)$'
+    ),
     re.compile(r'^[A-Z][^,]+,\s+(?:Note|Comment),\s+\d+\s+[A-Za-z\.]+\s+\d+\s*\(\d{4}\)$')
 ]
 

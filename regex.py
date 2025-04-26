@@ -50,11 +50,16 @@ ARTICLE_PATTERNS = [
 
 # Consolidated core patterns map
 PATTERNS = {
-    'case':        CITATION_PATTERN,
-    'statute':     STATUTE_PATTERNS,
-    'court_rule':  COURT_RULE_PATTERNS,
-    'book':        BOOK_PATTERNS,
-    'article':     ARTICLE_PATTERNS,
+    # allow newcitechecker to do PATTERNS['citation']
+    'citation':      CITATION_PATTERN,
+    'case':          CITATION_PATTERN,
+    # for validate('statute', …) to accept "12 C.S.C. § 3456"
+    'statute':       STATUTE_PATTERNS + [
+        re.compile(r'^\d+\s+[A-Za-z\.]+\s+§\s*[\d\w\(\)\-/]+(?:\s*\(.+\))?$')
+    ],
+    'court_rule':    COURT_RULE_PATTERNS,
+    'book':          BOOK_PATTERNS,
+    'article':       ARTICLE_PATTERNS,
 }
 
 # Dispatch validators for core types

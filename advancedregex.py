@@ -48,6 +48,14 @@ ARBITRATION_DECISION_PATTERN = re.compile(
     r'^.+?No\.\s*\d+\s*\(.+?\)\s*\(.+?Arbs\.\)$', re.IGNORECASE
 )
 
+SLIP_OPINION_PATTERN = re.compile(
+    r'^(?P<case_name>.+?),\s*'              # Case name, up to first comma
+    r'No\.\s*(?P<docket>[^,]+),\s*'         # “No.” and the docket number (anything up to next comma)
+    r'slip op\. at\s*(?P<pinpoint>\d+)\s*'  # “slip op. at” + page‐pinpoint
+    r'\((?P<court_and_date>.+?)\)$',        # Parenthesis with court + full date
+    flags=re.IGNORECASE
+)
+
 # ----- Exported maps for advanced use -----
 ADVANCED_PATTERNS = {
     'admin': ADMIN_CITATION_PATTERNS,
@@ -59,6 +67,7 @@ ADVANCED_PATTERNS = {
     'agency_report': AGENCY_REPORT_PATTERN,
     'ag_opinion': AG_OPINION_PATTERN,
     'arbitration': ARBITRATION_DECISION_PATTERN,
+    'slip_opinion': SLIP_OPINION_PATTERN,
 }
 
 ADVANCED_VALIDATORS = {kind: ADVANCED_PATTERNS[kind] for kind in ADVANCED_PATTERNS}

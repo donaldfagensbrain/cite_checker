@@ -13,6 +13,7 @@ from constants import (
     WORD_ABBREVIATIONS)
 
 from regex import PATTERNS, VALIDATORS
+import advancedregex 
 
 
 @dataclass(frozen=True)
@@ -190,7 +191,9 @@ class CitationChecker:
     def __init__(self):
         """Store parsed full‐form citations as {volume_reporter_page: components}."""
         self.full_citations: Dict[str, Dict[str, Any]] = {}
-        self.last_short_key = None  
+        self.last_short_key = None
+        self.enable_pincite_check = False
+        self.enable_quote_check   = False  
 
     def validate(self, kind: str, citation: str) -> bool:
         """
@@ -221,10 +224,19 @@ class CitationChecker:
 
         # split on semicolons so we catch multiple citations in one string
         for segment in re.split(r';\s*', text):
+       # Phase 1: core case citations (unchanged)
             for m in PATTERNS['citation'].finditer(segment):
                 comps = m.groupdict()
                 key = f"{comps['volume']}_{comps['reporter']}_{comps['page']}"
                 self.full_citations[key] = comps
+
+            # Phase 2: advanced citations (C.F.R., agency, exec. orders, etc.)
+            for kind, pat in advancedregex.ADVANCED_PATTERNS.items():
+                for m in pat.finditer(segment):
+                    comps = m.groupdict()
+                    # namespace by kind so you don’t collide with case‐keys
+                    key = f"{kind}:{m.group(0)}"
+                    self.full_citations[key] = comps
 
         return self.full_citations
 
@@ -540,6 +552,8 @@ class CitationChecker:
 
         Returns a 3-tuple: (parsed_components, case_data, formatted_string).
         """
+        if provided_quote is not None and pincite is None:
+            raise ValueError("A pincite is required when supplying a quotation for verification.")
         # — Preprocess —
         citation = abbreviate_months_in_citation(citation)
         citation = abbreviate_journals_in_citation(citation)
@@ -560,28 +574,47 @@ class CitationChecker:
                 )
             ])
         comps = m.groupdict()
+        # extract locals for DB lookup & checks
+        volume   = comps['volume']
+        reporter = comps['reporter']
+        page     = comps['page']
 
         # — Reporter + Court Level —
         if comps['reporter'] not in ALLOWED_REPORTERS:
             raise ValueError(f"Reporter '{comps['reporter']}' not allowed")
         validate_reporter_for_court(comps)
 
-        # — Fetch + Pincite Check —
-        # only do the DB lookup & error if a pincite was actually passed in
+ # — Fetch + Pincite Check —
+# — Fetch + Pincite Check & Quote Accuracy —
         if pincite is not None:
-            data = self.fetch_case_data(
-                comps['volume'], comps['reporter'], comps['page'], pincite
-            )
-            if not data:
-                raise ValueError("Citation not found or pincite incorrect")
+            # 3a) Basic numeric pincite sanity (runs always)
+            try:
+                main_pg = int(page)
+                pin_pg  = int(pincite)
+            except ValueError:
+                raise ValueError(f"Pincite must be numeric, got '{pincite}'")
+            if pin_pg < main_pg:
+                raise ValueError(f"Pincite {pin_pg} precedes start page {main_pg}")
+
+            # 3b) (Optional) Full DB-based range check
+            data: dict = {}
+            if self.enable_pincite_check:
+                data = self.fetch_case_data(volume, reporter, page, pincite)
+                if not data:
+                    raise ValueError("Citation not found or pincite incorrect")
+
+                # 3c) Quote‐accuracy check (only when DB lookup is ON)
+                if provided_quote is not None:
+                    clean = self._remove_signals(provided_quote)
+                    if not self._check_quote(clean, data.get("text", "")):
+                        raise ValueError("Provided quote does not match source text")
+            else:
+                # DB‐lookup is OFF, but a quote was provided → error
+                if provided_quote is not None:
+                    raise ValueError("A pincite is required when supplying a quotation for verification.")
         else:
             data = {}
 
-        # — Quote Verification —
-        if provided_quote:
-            cleaned = self._remove_signals(provided_quote)
-            if not self._check_quote(cleaned, data.get('text', "")):
-                raise ValueError("Provided quote does not match source text")
 
         # — Case-Name Omission & Abbreviation —
         # — Normalize spacing/periods on the case name, but do NOT abbreviate —

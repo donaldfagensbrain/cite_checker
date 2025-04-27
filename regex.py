@@ -22,9 +22,14 @@ CITATION_PATTERN = re.compile(
 
 # 2) Statutes: federal (U.S.C.) and all states
 FEDERAL_STATUTE_PATTERN = re.compile(
-    r'^(?P<title>\d+)\s+U\.S\.C\.+\s+§\s*(?P<section>[\d\w\(\)\-/]+)'  
-    r'(?:\s*\((?P<extra>.+?)\))?$'
+    # match “U.S.C.” or “U.S.C.A.” then § and section
+    r'^(?P<title>\d+)\s+'             # title number
+    r'U\.S\.C\.(?:A\.)?\s+'          # U.S.C. or U.S.C.A.
+    r'§\s*(?P<section>[\d\w\(\)\-/]+)'# §section
+    r'(?:\s*\((?P<extra>.+?)\))?$',   # optional parenthetical
+    flags=re.IGNORECASE
 )
+
 STATE_STATUTE_PATTERNS = [
     re.compile(
         r'^\d+\s+[A-Za-z\.]+\s+Code\s+§\s*[\d\.\-/]+'  
